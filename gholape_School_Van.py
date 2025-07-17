@@ -89,22 +89,31 @@ st.subheader(f"Welcome, {st.session_state.role.title()}!")
 # ---------------------------- Admin Section ----------------------------
 if st.session_state.role == "admin":
     st.sidebar.header("📣 School Notification")
-    selected_school = st.sidebar.selectbox("Select School", SCHOOLS, key="notif_school")
-    msg = st.sidebar.text_area("Notification Message", key="notif_msg")
-    
-    notif_file = f"notifications/{selected_school.replace(' ', '_').lower()}_notices.csv"
-    os.makedirs("notifications", exist_ok=True)
-    
-    if not os.path.exists(notif_file) or os.path.getsize(notif_file) == 0:
-        with open(notif_file, "w") as f:
-            f.write("message\n")
-    
-    if st.sidebar.button("Send Notification", key="send_notif"):
-        try:
-            df_notif = pd.read_csv(notif_file)
+    with st.sidebar.form("notification_form"):
+        selected_school = st.selectbox("Select School", SCHOOLS, key="notif_school")
+        msg = st.text_area("Notification Message", key="notif_msg")
+        submit_notif = st.form_submit_button("Send Notification")
+        
+        if submit_notif:
+            notif_file = f"notifications/{selected_school.replace(' ', '_').lower()}_notices.csv"
+            os.makedirs("notifications", exist_ok=True)
+
+            # Ensure the file exists and has correct header
+            if not os.path.exists(notif_file) or os.path.getsize(notif_file) == 0:
+                df_notif = pd.DataFrame(columns=["message"])
+            else:
+                df_notif = pd.read_csv(notif_file)
+
             df_notif.loc[len(df_notif)] = [msg]
             df_notif.to_csv(notif_file, index=False)
-            st.sidebar.success("Notification sent!")
+            st.success("Notification sent!")
+
+            if not df_notif.empty:
+                st.sidebar.markdown("#### Recent Notifications")
+                st.sidebar.dataframe(df_notif.tail(5))
+            else:
+                st.sidebar.info("No notifications yet.")
+
         except Exception as e:
             st.sidebar.error(f"Error sending notification: {e}")
 

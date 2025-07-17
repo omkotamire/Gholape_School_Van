@@ -4,6 +4,14 @@ import os
 import base64
 import requests
 
+# ---------------------------- SESSION INIT ----------------------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "role" not in st.session_state:
+    st.session_state.role = None
+if "user" not in st.session_state:
+    st.session_state.user = None
+
 # ---------------------------- CONFIG ----------------------------
 GITHUB_TOKEN = st.secrets["github_token"]
 GITHUB_REPO = "yourusername/yourrepo"
@@ -46,27 +54,32 @@ def push_to_github(file_path, github_path):
     return r.status_code in [200, 201]
 
 # ---------------------------- LOGIN ----------------------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.role = ""
-    st.session_state.user = ""
-
 if not st.session_state.logged_in:
     st.title("School Management Login")
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
+    username = st.text_input("Username")  # Parent name or admin username
+    password = st.text_input("Password", type="password")  # Mobile number or admin password
+
     if st.button("Login"):
-        if username == "gholape" and password == "gholape":
+        # Admin logins
+        admin_users = {"gholape": "gholape", "naveen": "naveen"}
+        if username in admin_users and password == admin_users[username]:
             st.session_state.logged_in = True
             st.session_state.role = "admin"
-            st.session_state.user = "admin"
+            st.session_state.user = username
         else:
+            # Parent login by name & contact match
             for school in SCHOOLS:
                 df = load_csv(school)
-                if username in df["parent_contact"].astype(str).values:
+                match = df[(df["parent_name"].str.lower() == username.lower()) &
+                (df["parent_contact"].astype(str) == password)]
+                if not match.empty:
                     st.session_state.logged_in = True
                     st.session_state.role = "parent"
-                    st.session_state.user = username
+                    st.session_state.user = {
+                        "name": username,
+                        "contact": password,
+                        "school": school   # <-- add this
+                    }
                     break
             if not st.session_state.logged_in:
                 st.error("Invalid credentials")
@@ -92,43 +105,57 @@ if st.session_state.role == "admin":
         df_notif.to_csv(notif_file, index=False)
         st.sidebar.success("Notification sent!")
 
-# View Notifications
-st.sidebar.header("🔔 View Notifications")
-notif_tab = st.sidebar.selectbox("Choose School to View", SCHOOLS)
-notif_file = f"notifications/{notif_tab.replace(' ', '_').lower()}_notices.csv"
-if os.path.exists(notif_file):
-    st.sidebar.write(pd.read_csv(notif_file).tail(5))
-else:
-    st.sidebar.info("No notifications yet.")
+# View Notifications - Only for Admin
+if st.session_state.role == "admin":
+    st.sidebar.header("🔔 View Notifications")
+    notif_tab = st.sidebar.selectbox("Choose School to View", SCHOOLS)
+    notif_file = f"notifications/{notif_tab.replace(' ', '_').lower()}_notices.csv"
+    if os.path.exists(notif_file):
+        st.sidebar.write(pd.read_csv(notif_file).tail(5))
+    else:
+        st.sidebar.info("No notifications yet.")
 
 # ---------------------------- SCHOOL SECTIONS ----------------------------
-tabs = st.tabs(SCHOOLS)
-for i, school in enumerate(SCHOOLS):
-    with tabs[i]:
-        df = load_csv(school)
+if st.session_state.role == "admin":
+    tabs = st.tabs(SCHOOLS)
+    for i, school in enumerate(SCHOOLS):
+        with tabs[i]:
+            df = load_csv(school)
 
-        if st.session_state.role == "admin":
             st.markdown("### Add Student")
             with st.form(f"form_{i}"):
-                sid = st.text_input("Student ID")
-                name = st.text_input("Student Name")
-                fee = st.number_input("Total Fee", 0)
-                remaining_fee = st.number_input("Remaining Fee", 0)
-                parent_name = st.text_input("Parent Name")
-                parent_contact = st.text_input("Parent Contact")
+                sid = st.text_input("Student ID", key=f"sid_{i}")
+                name = st.text_input("Student Name", key=f"name_{i}")
+                fee = st.number_input("Total Fee", 0, key=f"fee_{i}")
+                remaining_fee = st.number_input("Remaining Fee", 0, key=f"rem_fee_{i}")
+                parent_name = st.text_input("Parent Name", key=f"pname_{i}")
+                parent_contact = st.text_input("Parent Contact", key=f"pcontact_{i}")
                 if st.form_submit_button("Add Student"):
                     df.loc[len(df)] = [sid, name, school, fee, remaining_fee, parent_name, parent_contact]
                     save_csv(school, df)
-                    push_to_github(f"{CSV_FOLDER}/{school.replace(' ', '_').lower()}.csv", f"{CSV_FOLDER}/{school.replace(' ', '_').lower()}.csv")
+                    push_to_github(f"{CSV_FOLDER}/{school.replace(' ', '_').lower()}.csv",
+                                   f"{CSV_FOLDER}/{school.replace(' ', '_').lower()}.csv")
                     st.success("Student added successfully!")
 
             st.markdown("### All Students")
             st.dataframe(df)
 
-        elif st.session_state.role == "parent":
-            parent_df = df[df["parent_contact"].astype(str) == st.session_state.user]
-            if not parent_df.empty:
-                st.write("### Your Child's Info")
-                st.dataframe(parent_df)
-            else:
-                st.warning("No record found.")
+elif st.session_state.role == "parent":
+    school = st.session_state.user["school"]
+    st.header(f"🎓 {school}")
+    df = load_csv(school)
+    parent_df = df[
+        (df["parent_name"].str.lower() == st.session_state.user["name"].lower()) &
+        (df["parent_contact"].astype(str) == st.session_state.user["contact"])
+    ]
+    if not parent_df.empty:
+        st.write("### Your Child's Info")
+        st.dataframe(parent_df)
+        notif_file = f"notifications/{school.replace(' ', '_').lower()}_notices.csv"
+        if os.path.exists(notif_file):
+            st.write("### 📢 School Notifications")
+            st.dataframe(pd.read_csv(notif_file).tail(5))
+        else:
+            st.info("No notifications available from school.")
+    else:
+        st.warning("No record found.")

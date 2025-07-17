@@ -116,10 +116,20 @@ if st.session_state.role == "admin":
     st.sidebar.header("🔔 View Notifications")
     notif_tab = st.sidebar.selectbox("Choose School to View", SCHOOLS)
     notif_file = f"notifications/{notif_tab.replace(' ', '_').lower()}_notices.csv"
-    if os.path.exists(notif_file):
-        st.sidebar.write(pd.read_csv(notif_file).tail(5))
-    else:
-        st.sidebar.info("No notifications yet.")
+    os.makedirs("notifications", exist_ok=True)
+
+    # ✅ Create an empty CSV with header if it doesn't exist or is empty
+    if not os.path.exists(notif_file) or os.path.getsize(notif_file) == 0:
+        pd.DataFrame(columns=["message"]).to_csv(notif_file, index=False)
+
+    try:
+        df_notif = pd.read_csv(notif_file)
+        if not df_notif.empty:
+            st.sidebar.write(df_notif.tail(5))
+        else:
+            st.sidebar.info("No notifications yet.")
+    except Exception as e:
+        st.sidebar.error(f"Error reading notifications: {e}")
 
 # ---------------------------- SCHOOL SECTIONS ----------------------------
 if st.session_state.role == "admin":

@@ -118,10 +118,12 @@ if st.session_state.role == "admin":
     notif_file = f"notifications/{notif_tab.replace(' ', '_').lower()}_notices.csv"
     os.makedirs("notifications", exist_ok=True)
 
-    # ✅ Create an empty CSV with header if it doesn't exist or is empty
+    # ✅ Always create the file with a header if missing or empty
     if not os.path.exists(notif_file) or os.path.getsize(notif_file) == 0:
-        pd.DataFrame(columns=["message"]).to_csv(notif_file, index=False)
+        with open(notif_file, "w") as f:
+            f.write("message\n")  # just write the header
 
+    # ✅ Now safely read the CSV
     try:
         df_notif = pd.read_csv(notif_file)
         if not df_notif.empty:
@@ -130,7 +132,7 @@ if st.session_state.role == "admin":
             st.sidebar.info("No notifications yet.")
     except Exception as e:
         st.sidebar.error(f"Error reading notifications: {e}")
-
+        
 # ---------------------------- SCHOOL SECTIONS ----------------------------
 if st.session_state.role == "admin":
     tabs = st.tabs(SCHOOLS)

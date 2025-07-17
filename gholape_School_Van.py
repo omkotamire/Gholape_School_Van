@@ -97,10 +97,16 @@ if st.session_state.role == "admin":
     if st.sidebar.button("Send Notification"):
         notif_file = f"notifications/{selected_school.replace(' ', '_').lower()}_notices.csv"
         os.makedirs("notifications", exist_ok=True)
-        if os.path.exists(notif_file):
+        
+        if os.path.exists(notif_file) and os.path.getsize(notif_file) > 0:
             df_notif = pd.read_csv(notif_file)
+            if not df_notif.empty:
+                st.sidebar.write(df_notif.tail(5))
+            else:
+                st.sidebar.info("No notifications yet.")
         else:
-            df_notif = pd.DataFrame(columns=["message"])
+            st.sidebar.info("No notifications yet.")
+     
         df_notif.loc[len(df_notif)] = [msg]
         df_notif.to_csv(notif_file, index=False)
         st.sidebar.success("Notification sent!")

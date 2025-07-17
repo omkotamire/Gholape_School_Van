@@ -167,11 +167,21 @@ elif st.session_state.role == "parent":
     if not parent_df.empty:
         st.write("### Your Child's Info")
         st.dataframe(parent_df)
+        
         notif_file = f"notifications/{school.replace(' ', '_').lower()}_notices.csv"
-        if os.path.exists(notif_file):
-            st.write("### 📢 School Notifications")
-            st.dataframe(pd.read_csv(notif_file).tail(5))
-        else:
-            st.info("No notifications available from school.")
+        os.makedirs("notifications", exist_ok=True)
+        if not os.path.exists(notif_file) or os.path.getsize(notif_file) == 0:
+            pd.DataFrame(columns=["message"]).to_csv(notif_file, index=False)
+        
+        try:
+            df_notif = pd.read_csv(notif_file)
+            if not df_notif.empty:
+                st.write("### 📢 School Notifications")
+                st.dataframe(df_notif.tail(5))
+            else:
+                st.info("No notifications available from school.")
+        except Exception as e:
+            st.error(f"Error reading notifications: {e}")
+            
     else:
         st.warning("No record found.")

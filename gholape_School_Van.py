@@ -14,12 +14,11 @@ if "user" not in st.session_state:
 
 # ---------------------------- CONFIG ----------------------------
 GITHUB_TOKEN = st.secrets["github_token"]
-GITHUB_REPO = "yourusername/yourrepo"
+GITHUB_REPO = "yourusername/yourrepo"  # Change this to your actual repo
 GITHUB_BRANCH = "main"
 SCHOOLS = ["School A", "School B", "School C", "School D"]
 CSV_FOLDER = "schools"
 
-# ---------------------------- INIT ----------------------------
 os.makedirs(CSV_FOLDER, exist_ok=True)
 
 # ---------------------------- UTILS ----------------------------
@@ -56,29 +55,27 @@ def push_to_github(file_path, github_path):
 # ---------------------------- LOGIN ----------------------------
 if not st.session_state.logged_in:
     st.title("School Management Login")
-    username = st.text_input("Username")  # Parent name or admin username
-    password = st.text_input("Password", type="password")  # Mobile number or admin password
+    username = st.text_input("Username", key="login_user")
+    password = st.text_input("Password", type="password", key="login_pass")
 
-    if st.button("Login"):
-        # Admin logins
+    if st.button("Login", key="login_button"):
         admin_users = {"gholape": "gholape", "naveen": "naveen"}
         if username in admin_users and password == admin_users[username]:
             st.session_state.logged_in = True
             st.session_state.role = "admin"
             st.session_state.user = username
         else:
-            # Parent login by name & contact match
             for school in SCHOOLS:
                 df = load_csv(school)
                 match = df[(df["parent_name"].str.lower() == username.lower()) &
-                (df["parent_contact"].astype(str) == password)]
+                           (df["parent_contact"].astype(str) == password)]
                 if not match.empty:
                     st.session_state.logged_in = True
                     st.session_state.role = "parent"
                     st.session_state.user = {
                         "name": username,
                         "contact": password,
-                        "school": school   # <-- add this
+                        "school": school
                     }
                     break
             if not st.session_state.logged_in:
@@ -89,43 +86,20 @@ if not st.session_state.logged_in:
 st.title("📚 School Management App")
 st.subheader(f"Welcome, {st.session_state.role.title()}!")
 
-# Notifications
+# ---------------------------- Admin Section ----------------------------
 if st.session_state.role == "admin":
     st.sidebar.header("📣 School Notification")
-    selected_school = st.sidebar.selectbox("Select School", SCHOOLS)
-    msg = st.sidebar.text_area("Notification Message")
-    if st.sidebar.button("Send Notification"):
-        notif_file = f"notifications/{selected_school.replace(' ', '_').lower()}_notices.csv"
-        os.makedirs("notifications", exist_ok=True)
-        
-        if os.path.exists(notif_file) and os.path.getsize(notif_file) > 0:
-            df_notif = pd.read_csv(notif_file)
-            if not df_notif.empty:
-                st.sidebar.write(df_notif.tail(5))
-            else:
-                st.sidebar.info("No notifications yet.")
-        else:
-            st.sidebar.info("No notifications yet.")
-     
-        df_notif.loc[len(df_notif)] = [msg]
-        df_notif.to_csv(notif_file, index=False)
-        st.sidebar.success("Notification sent!")
-
-# View Notifications - Only for Admin
-if st.session_state.role == "admin":
-    st.sidebar.header("📣 School Notification")
-    selected_school = st.sidebar.selectbox("Select School", SCHOOLS)
-    msg = st.sidebar.text_area("Notification Message")
+    selected_school = st.sidebar.selectbox("Select School", SCHOOLS, key="notif_school")
+    msg = st.sidebar.text_area("Notification Message", key="notif_msg")
     
     notif_file = f"notifications/{selected_school.replace(' ', '_').lower()}_notices.csv"
     os.makedirs("notifications", exist_ok=True)
-
-    # ✅ Ensure the file exists and has a header
+    
     if not os.path.exists(notif_file) or os.path.getsize(notif_file) == 0:
         with open(notif_file, "w") as f:
             f.write("message\n")
-
-    if st.sidebar.button("Send Notification"):
+    
+    if st.sidebar.button("Send Notification", key="send_notif"):
         try:
             df_notif = pd.read_csv(notif_file)
             df_notif.loc[len(df_notif)] = [msg]
@@ -133,23 +107,22 @@ if st.session_state.role == "admin":
             st.sidebar.success("Notification sent!")
         except Exception as e:
             st.sidebar.error(f"Error sending notification: {e}")
-   
-# ---------------------------- SCHOOL SECTIONS ----------------------------
-if st.session_state.role == "admin":
+
+    # Admin Tabs per School
     tabs = st.tabs(SCHOOLS)
     for i, school in enumerate(SCHOOLS):
         with tabs[i]:
             df = load_csv(school)
 
             st.markdown("### Add Student")
-            with st.form(f"form_{i}"):
-                sid = st.text_input("Student ID", key=f"sid_{i}")
-                name = st.text_input("Student Name", key=f"name_{i}")
-                fee = st.number_input("Total Fee", 0, key=f"fee_{i}")
-                remaining_fee = st.number_input("Remaining Fee", 0, key=f"rem_fee_{i}")
-                parent_name = st.text_input("Parent Name", key=f"pname_{i}")
-                parent_contact = st.text_input("Parent Contact", key=f"pcontact_{i}")
-                if st.form_submit_button("Add Student"):
+            with st.form(f"form_{school}"):
+                sid = st.text_input("Student ID", key=f"sid_{school}")
+                name = st.text_input("Student Name", key=f"name_{school}")
+                fee = st.number_input("Total Fee", min_value=0, key=f"fee_{school}")
+                remaining_fee = st.number_input("Remaining Fee", min_value=0, key=f"rem_fee_{school}")
+                parent_name = st.text_input("Parent Name", key=f"pname_{school}")
+                parent_contact = st.text_input("Parent Contact", key=f"pcontact_{school}")
+                if st.form_submit_button("Add Student", key=f"submit_{school}"):
                     df.loc[len(df)] = [sid, name, school, fee, remaining_fee, parent_name, parent_contact]
                     save_csv(school, df)
                     push_to_github(f"{CSV_FOLDER}/{school.replace(' ', '_').lower()}.csv",
@@ -159,6 +132,7 @@ if st.session_state.role == "admin":
             st.markdown("### All Students")
             st.dataframe(df)
 
+# ---------------------------- Parent Section ----------------------------
 elif st.session_state.role == "parent":
     school = st.session_state.user["school"]
     st.header(f"🎓 {school}")
@@ -170,12 +144,12 @@ elif st.session_state.role == "parent":
     if not parent_df.empty:
         st.write("### Your Child's Info")
         st.dataframe(parent_df)
-        
+
         notif_file = f"notifications/{school.replace(' ', '_').lower()}_notices.csv"
         os.makedirs("notifications", exist_ok=True)
         if not os.path.exists(notif_file) or os.path.getsize(notif_file) == 0:
             pd.DataFrame(columns=["message"]).to_csv(notif_file, index=False)
-        
+
         try:
             df_notif = pd.read_csv(notif_file)
             if not df_notif.empty:
@@ -185,6 +159,5 @@ elif st.session_state.role == "parent":
                 st.info("No notifications available from school.")
         except Exception as e:
             st.error(f"Error reading notifications: {e}")
-            
     else:
         st.warning("No record found.")

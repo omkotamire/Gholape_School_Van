@@ -113,26 +113,27 @@ if st.session_state.role == "admin":
 
 # View Notifications - Only for Admin
 if st.session_state.role == "admin":
-    st.sidebar.header("🔔 View Notifications")
-    notif_tab = st.sidebar.selectbox("Choose School to View", SCHOOLS)
-    notif_file = f"notifications/{notif_tab.replace(' ', '_').lower()}_notices.csv"
+    st.sidebar.header("📣 School Notification")
+    selected_school = st.sidebar.selectbox("Select School", SCHOOLS)
+    msg = st.sidebar.text_area("Notification Message")
+    
+    notif_file = f"notifications/{selected_school.replace(' ', '_').lower()}_notices.csv"
     os.makedirs("notifications", exist_ok=True)
 
-    # ✅ Always create the file with a header if missing or empty
+    # ✅ Ensure the file exists and has a header
     if not os.path.exists(notif_file) or os.path.getsize(notif_file) == 0:
         with open(notif_file, "w") as f:
-            f.write("message\n")  # just write the header
+            f.write("message\n")
 
-    # ✅ Now safely read the CSV
-    try:
-        df_notif = pd.read_csv(notif_file)
-        if not df_notif.empty:
-            st.sidebar.write(df_notif.tail(5))
-        else:
-            st.sidebar.info("No notifications yet.")
-    except Exception as e:
-        st.sidebar.error(f"Error reading notifications: {e}")
-        
+    if st.sidebar.button("Send Notification"):
+        try:
+            df_notif = pd.read_csv(notif_file)
+            df_notif.loc[len(df_notif)] = [msg]
+            df_notif.to_csv(notif_file, index=False)
+            st.sidebar.success("Notification sent!")
+        except Exception as e:
+            st.sidebar.error(f"Error sending notification: {e}")
+   
 # ---------------------------- SCHOOL SECTIONS ----------------------------
 if st.session_state.role == "admin":
     tabs = st.tabs(SCHOOLS)

@@ -134,9 +134,22 @@ if st.session_state.role == "admin":
             st.markdown("### 💰 Submit Fee Payment")
             with st.form(f"pay_form_{school}"):
                 if not df.empty:
-                    student_list = df.index.astype(str) + " - " + df["name"]
+                    student_list = [f"S{idx+1:04d} - {row['name']}" for idx, row in df.iterrows()]
                     selected = st.selectbox("Select Student", student_list)
                     amt = st.number_input("Amount Paid", min_value=0)
+                    if st.form_submit_button("Submit Fee"):
+                        sid = selected.split(" - ")[0]
+                        idx = int(sid[1:]) - 1
+                        df.at[idx, "remaining_fee"] = max(0, df.at[idx, "remaining_fee"] - amt)
+                        save_data(school, df)
+                        append_payment(school, {
+                            "student_id": sid,
+                            "name": df.at[idx, "name"],
+                            "amount_paid": amt,
+                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        })
+                        st.success(f"Fee of ₹{amt} submitted")
+
                     if st.form_submit_button("Submit Fee"):
                         idx = int(selected.split(" - ")[0])
                         df.at[idx, "remaining_fee"] = max(0, df.at[idx, "remaining_fee"] - amt)

@@ -143,7 +143,8 @@ if st.session_state.role == "admin":
             st.markdown("### 💰 Submit Fee Payment")
             with st.form(f"form_pay_{school}"):
                 if not df.empty:
-                    selected = st.selectbox("Select Student", df.index + " - " + df["name"])
+                    select_options = df.index.astype(str) + " - " + df["name"]
+                    selected = st.selectbox("Select Student", select_options)
                     amt = st.number_input("Amount Paid", min_value=0, key=f"amt_{school}")
                     if st.form_submit_button("Submit Fee"):
                         sid = selected.split(" - ")[0]
@@ -156,6 +157,7 @@ if st.session_state.role == "admin":
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         })
                         st.success(f"Fee of ₹{amt} submitted for {df.at[sid, 'name']}")
+
 
 # ---------------------------- PARENT ----------------------------
 elif st.session_state.role == "parent":

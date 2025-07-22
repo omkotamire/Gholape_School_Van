@@ -31,8 +31,13 @@ def get_notif_ref(school):
 
 def load_data(school):
     data = get_school_ref(school).get()
-    return pd.DataFrame(data.values()) if data else pd.DataFrame(columns=[
+    df = pd.DataFrame(data.values()) if data else pd.DataFrame(columns=[
         "name", "school_name", "fee", "remaining_fee", "parent_name", "parent_contact"])
+    
+    # Convert fee columns safely to numeric
+    df["fee"] = pd.to_numeric(df.get("fee", 0), errors="coerce").fillna(0).astype(int)
+    df["remaining_fee"] = pd.to_numeric(df.get("remaining_fee", 0), errors="coerce").fillna(0).astype(int)    
+    return df
 
 def save_data(school, df):
     data_dict = df.reset_index(drop=True).to_dict(orient="records")
@@ -130,7 +135,6 @@ if st.session_state.role == "admin":
             else:
                 st.info("No students found.")
 
-
             st.markdown("### 💰 Submit Fee Payment")
             with st.form(f"pay_form_{school}"):
                 if not df.empty:
@@ -144,18 +148,6 @@ if st.session_state.role == "admin":
                         save_data(school, df)
                         append_payment(school, {
                             "student_id": sid,
-                            "name": df.at[idx, "name"],
-                            "amount_paid": amt,
-                            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        })
-                        st.success(f"Fee of ₹{amt} submitted")
-
-                    if st.form_submit_button("Submit Fee"):
-                        idx = int(selected.split(" - ")[0])
-                        df.at[idx, "remaining_fee"] = max(0, df.at[idx, "remaining_fee"] - amt)
-                        save_data(school, df)
-                        append_payment(school, {
-                            "student_id": f"S{idx+1:04d}",
                             "name": df.at[idx, "name"],
                             "amount_paid": amt,
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")

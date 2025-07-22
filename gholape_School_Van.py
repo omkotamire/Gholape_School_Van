@@ -60,7 +60,7 @@ def load_notifications(school):
 
 # ---------------------------- LOGIN ----------------------------
 if not st.session_state.logged_in:
-    st.title("🚌 School Van App")
+    st.title("🚌 Welcome to Gholape School Van Services")
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
@@ -87,7 +87,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ---------------------------- DASHBOARD ----------------------------
-st.title("🚌 School Van App Dashboard")
+st.title("🚌 Welcome to Gholape School Van Services")
 st.subheader(f"Welcome, {st.session_state.role.title()}!")
 
 if st.button("🔓 Logout"):

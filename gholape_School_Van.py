@@ -143,7 +143,7 @@ if st.session_state.role == "admin":
             st.markdown("### 💰 Submit Fee Payment")
             with st.form(f"form_pay_{school}"):
                 if not df.empty:
-                    select_options = df.index.astype(str) + " - " + df["name"]
+                    select_options = df["name"]
                     selected = st.selectbox("Select Student", select_options)
                     amt = st.number_input("Amount Paid", min_value=0, key=f"amt_{school}")
                     if st.form_submit_button("Submit Fee"):

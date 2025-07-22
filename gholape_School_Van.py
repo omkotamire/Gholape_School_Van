@@ -119,8 +119,17 @@ if st.session_state.role == "admin":
                         save_data(school, df)
                         st.success("Student added")
 
+            #st.markdown("### 📄 All Students")
+            #st.dataframe(df)
+
             st.markdown("### 📄 All Students")
-            st.dataframe(df)
+            if not df.empty:
+                df_display = df.copy()
+                df_display.index = [f"S{idx+1:04d}" for idx in df_display.index]
+                st.dataframe(df_display)
+            else:
+                st.info("No students found.")
+
 
             st.markdown("### 💰 Submit Fee Payment")
             with st.form(f"pay_form_{school}"):

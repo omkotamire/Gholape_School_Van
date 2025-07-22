@@ -8,7 +8,7 @@ from firebase_admin import credentials, db
 if not firebase_admin._apps:
     cred = credentials.Certificate(st.secrets["firebase"])
     firebase_admin.initialize_app(cred, {
-        "databaseURL": "https://your-project-id.firebaseio.com"  # Replace with your Firebase URL
+        "databaseURL": "https://your-project-id.firebaseio.com"  # Replace with your actual URL
     })
 
 # ---------------------------- SESSION INIT ----------------------------
@@ -19,7 +19,6 @@ if "role" not in st.session_state:
 if "user" not in st.session_state:
     st.session_state.user = None
 
-# ---------------------------- CONFIG ----------------------------
 SCHOOLS = ["School A", "School B", "School C", "School D"]
 
 # ---------------------------- UTILS ----------------------------
@@ -30,18 +29,20 @@ def get_notif_ref(school):
     return db.reference(f"notifications/{school.replace(' ', '_')}")
 
 def load_data(school):
-    data = get_school_ref(school).get()
-    df = pd.DataFrame(data.values()) if data else pd.DataFrame(columns=[
-        "name", "school_name", "fee", "remaining_fee", "parent_name", "parent_contact"])
+    ref = get_school_ref(school)
+    data = ref.get()
+    if not data:
+        return pd.DataFrame(columns=["name", "school_name", "fee", "remaining_fee", "parent_name", "parent_contact"])
     
-    # Convert fee columns safely to numeric
+    df = pd.DataFrame(data).T  # .T to make keys (e.g., S0001) as rows
+    df.index.name = "student_id"
     df["fee"] = pd.to_numeric(df.get("fee", 0), errors="coerce").fillna(0).astype(int)
-    df["remaining_fee"] = pd.to_numeric(df.get("remaining_fee", 0), errors="coerce").fillna(0).astype(int)    
+    df["remaining_fee"] = pd.to_numeric(df.get("remaining_fee", 0), errors="coerce").fillna(0).astype(int)
     return df
 
 def save_data(school, df):
-    data_dict = df.reset_index(drop=True).to_dict(orient="records")
-    get_school_ref(school).set({f"S{idx+1:04d}": row for idx, row in enumerate(data_dict)})
+    data_dict = df.to_dict(orient="index")
+    get_school_ref(school).set(data_dict)
 
 def append_payment(school, payment):
     db.reference(f"payments/{school.replace(' ', '_')}").push(payment)
@@ -60,7 +61,7 @@ def load_notifications(school):
 
 # ---------------------------- LOGIN ----------------------------
 if not st.session_state.logged_in:
-    st.title("𝓑𝓪𝓱𝓲𝓮 𝓗𝓮𝓲𝓲 𝓖𝓸𝓻𝓶 𝓕𝓲𝓷𝓾𝓻𝓼")
+    st.title("🚌 School Van App")
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
 
@@ -87,7 +88,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ---------------------------- DASHBOARD ----------------------------
-st.title("💼 𝓑𝓪𝓱𝓲𝓮 𝓗𝓮𝓲𝓲 𝓖𝓸𝓻𝓶 𝓕𝓲𝓷𝓾𝓻𝓼")
+st.title("🚌 School Van App Dashboard")
 st.subheader(f"Welcome, {st.session_state.role.title()}!")
 
 if st.button("🔓 Logout"):
@@ -109,50 +110,52 @@ if st.session_state.role == "admin":
     for i, school in enumerate(SCHOOLS):
         with tabs[i]:
             df = load_data(school)
+
             st.markdown("### ➕ Add Student")
-            with st.form(f"form_{school}"):
-                name = st.text_input("Student Name")
-                fee = st.number_input("Total Fee", min_value=0)
-                remaining = st.number_input("Remaining Fee", min_value=0)
-                pname = st.text_input("Parent Name")
-                contact = st.text_input("Parent Contact")
+            with st.form(f"form_add_{school}"):
+                name = st.text_input("Student Name", key=f"name_{school}")
+                fee = st.number_input("Total Fee", min_value=0, key=f"fee_{school}")
+                remaining = st.number_input("Remaining Fee", min_value=0, key=f"rem_{school}")
+                pname = st.text_input("Parent Name", key=f"pname_{school}")
+                contact = st.text_input("Parent Contact", key=f"contact_{school}")
                 if st.form_submit_button("Add Student"):
                     if not name or not pname or not contact:
                         st.warning("Fill required fields")
                     else:
-                        df.loc[len(df)] = [name, school, fee, remaining, pname, contact]
+                        new_id = f"S{len(df) + 1:04d}"
+                        df.loc[new_id] = {
+                            "name": name,
+                            "school_name": school,
+                            "fee": fee,
+                            "remaining_fee": remaining,
+                            "parent_name": pname,
+                            "parent_contact": contact
+                        }
                         save_data(school, df)
                         st.success("Student added")
 
-            #st.markdown("### 📄 All Students")
-            #st.dataframe(df)
-
             st.markdown("### 📄 All Students")
             if not df.empty:
-                df_display = df.copy()
-                df_display.index = [f"S{idx+1:04d}" for idx in df_display.index]
-                st.dataframe(df_display)
+                st.dataframe(df)
             else:
                 st.info("No students found.")
 
             st.markdown("### 💰 Submit Fee Payment")
-            with st.form(f"pay_form_{school}"):
+            with st.form(f"form_pay_{school}"):
                 if not df.empty:
-                    student_list = [f"S{idx+1:04d} - {row['name']}" for idx, row in df.iterrows()]
-                    selected = st.selectbox("Select Student", student_list)
-                    amt = st.number_input("Amount Paid", min_value=0)
+                    selected = st.selectbox("Select Student", df.index + " - " + df["name"])
+                    amt = st.number_input("Amount Paid", min_value=0, key=f"amt_{school}")
                     if st.form_submit_button("Submit Fee"):
                         sid = selected.split(" - ")[0]
-                        idx = int(sid[1:]) - 1
-                        df.at[idx, "remaining_fee"] = max(0, df.at[idx, "remaining_fee"] - amt)
+                        df.at[sid, "remaining_fee"] = max(0, df.at[sid, "remaining_fee"] - amt)
                         save_data(school, df)
                         append_payment(school, {
                             "student_id": sid,
-                            "name": df.at[idx, "name"],
+                            "name": df.at[sid, "name"],
                             "amount_paid": amt,
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         })
-                        st.success(f"Fee of ₹{amt} submitted")
+                        st.success(f"Fee of ₹{amt} submitted for {df.at[sid, 'name']}")
 
 # ---------------------------- PARENT ----------------------------
 elif st.session_state.role == "parent":
@@ -167,7 +170,7 @@ elif st.session_state.role == "parent":
 
     st.write("### 💸 Payment History")
     df_pay = load_payments(school)
-    df_pay = df_pay[df_pay["student_id"].isin([f"S{idx+1:04d}" for idx in my_kids.index])]
+    df_pay = df_pay[df_pay["student_id"].isin(my_kids.index)]
     if not df_pay.empty:
         st.dataframe(df_pay.sort_values(by="timestamp", ascending=False).head(5))
     else:

@@ -115,7 +115,7 @@ if st.session_state.role == "admin":
                     if not name or not pname or not contact:
                         st.warning("Fill required fields")
                     else:
-                        df.loc[len(df)] = [name, school, fee, remaining, pname, contact]
+                        df.loc[len(df)] = [name,  fee, remaining, pname, contact, school]
                         save_data(school, df)
                         st.success("Student added")
 

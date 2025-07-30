@@ -7,29 +7,26 @@ import json
 
 # ---------------------------- FIREBASE INIT ----------------------------
 firebase_connected = False  # Track connection status
-
-if not firebase_admin._apps:
-    try:
-        firebase_config = dict(st.secrets["firebase"])  # ✅ Convert to dict
+try:
+    if not firebase_admin._apps:
+        firebase_config = dict(st.secrets["firebase"])
         cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred, {
             "databaseURL": "https://gholapevan-default-rtdb.asia-southeast1.firebasedatabase.app/"
         })
         firebase_connected = True
-    except Exception as e:
-        st.error(f"❌ Firebase init failed: {str(e)}")
-
-# ✅ Test Firebase connection
-try:
-    if firebase_connected:
-        test_ref = db.reference("/")
-        test_data = test_ref.get()
     else:
-        test_data = None
+        # ✅ If already initialized, still consider it connected
+        firebase_connected = True
+
+    # ✅ Test Firebase connection
+    test_ref = db.reference("/")
+    test_data = test_ref.get()
+
 except Exception as e:
     firebase_connected = False
-    st.error(f"❌ Firebase connection failed: {str(e)}")
-
+    test_data = None
+    st.error(f"❌ Firebase connection failed: {str(e)}")    
 
 # ---------------------------- SESSION INIT ----------------------------
 if "logged_in" not in st.session_state:

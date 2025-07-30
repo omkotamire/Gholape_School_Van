@@ -12,7 +12,7 @@ if not firebase_admin._apps:
     try:
         cred = credentials.Certificate(dict(st.secrets["firebase"]))
         firebase_admin.initialize_app(cred, {
-            "databaseURL": "https://gholapevan-default-rtdb.firebaseio.com/"  # ✅ Fixed URL
+            "databaseURL": "https://gholapevan-default-rtdb.asia-southeast1.firebasedatabase.app/"  # ✅ Fixed URL
         })
 
         # 🔎 Test connection

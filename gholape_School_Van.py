@@ -7,11 +7,21 @@ import json
 
 # ---------------------------- FIREBASE INIT ----------------------------
 if not firebase_admin._apps:
-    cred = credentials.Certificate(dict(st.secrets["firebase"]))
-    firebase_admin.initialize_app(cred, {
-        "databaseURL": "https://gholapevan-default-rtdb.asia-southeast1.firebasedatabase.app/"  # Replace with your actual URL
-        #"databaseURL": "https://gholapevan-default-rtdb.firebaseio.com/"
-    })
+    try:
+        cred = credentials.Certificate(dict(st.secrets["firebase"]))
+        firebase_admin.initialize_app(cred, {
+            "databaseURL": "https://gholapevan-default-rtdb.firebaseio.com/"  # ✅ Fixed URL
+        })
+
+        # 🔎 Test connection
+        test_ref = db.reference("/")
+        test_data = test_ref.get()
+        st.sidebar.success("✅ Firebase connected successfully!")
+        if not test_data:
+            st.sidebar.warning("⚠️ Database is empty. Add data before login.")
+    except Exception as e:
+        st.error(f"❌ Firebase connection failed: {str(e)}")
+        st.stop()
 
 # ---------------------------- SESSION INIT ----------------------------
 if "logged_in" not in st.session_state:
@@ -31,15 +41,18 @@ def get_notif_ref(school):
     return db.reference(f"notifications/{school.replace(' ', '_')}")
 
 def load_data(school):
-    ref = get_school_ref(school)
-    data = ref.get()
-    if not data:
+    try:
+        ref = get_school_ref(school)
+        data = ref.get()
+        if not data:
+            return pd.DataFrame(columns=["name", "school_name", "fee", "remaining_fee", "parent_name", "parent_contact"])
+        df = pd.DataFrame(data.values())
+        df["fee"] = pd.to_numeric(df.get("fee", 0), errors="coerce").fillna(0).astype(int)
+        df["remaining_fee"] = pd.to_numeric(df.get("remaining_fee", 0), errors="coerce").fillna(0).astype(int)
+        return df
+    except Exception as e:
+        st.error(f"⚠️ Error loading data for {school}: {str(e)}")
         return pd.DataFrame(columns=["name", "school_name", "fee", "remaining_fee", "parent_name", "parent_contact"])
-    
-    df = pd.DataFrame(data.values())
-    df["fee"] = pd.to_numeric(df.get("fee", 0), errors="coerce").fillna(0).astype(int)
-    df["remaining_fee"] = pd.to_numeric(df.get("remaining_fee", 0), errors="coerce").fillna(0).astype(int)
-    return df
 
 def save_data(school, df):
     data_dict = df.to_dict(orient="records")

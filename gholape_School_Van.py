@@ -8,20 +8,27 @@ import json
 # ---------------------------- FIREBASE INIT ----------------------------
 firebase_connected = False  # Track connection status
 
+# Debugging: Show secrets keys
+st.write("Secrets keys available:", list(st.secrets.keys()))
+
 if not firebase_admin._apps:
     try:
-        cred = credentials.Certificate(st.secrets["firebase"])
+        firebase_config = dict(st.secrets["firebase"])  # ✅ Convert to dict
+        cred = credentials.Certificate(firebase_config)
         firebase_admin.initialize_app(cred, {
-            "databaseURL": "https://gholapevan-default-rtdb.asia-southeast1.firebasedatabase.app/"  # ✅ Corrected
+            "databaseURL": "https://gholapevan-default-rtdb.asia-southeast1.firebasedatabase.app/"
         })
+        firebase_connected = True
     except Exception as e:
         st.error(f"❌ Firebase init failed: {str(e)}")
 
 # ✅ Test Firebase connection
 try:
-    test_ref = db.reference("/")
-    test_data = test_ref.get()
-    firebase_connected = True
+    if firebase_connected:
+        test_ref = db.reference("/")
+        test_data = test_ref.get()
+    else:
+        test_data = None
 except Exception as e:
     firebase_connected = False
     st.error(f"❌ Firebase connection failed: {str(e)}")
@@ -45,16 +52,6 @@ with st.sidebar:
             st.warning("⚠️ Database is empty. Add data before login.")
     else:
         st.error("❌ Firebase Status: Disconnected")
-
-# ---------------------------- SESSION INIT ----------------------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "role" not in st.session_state:
-    st.session_state.role = None
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-SCHOOLS = ["School A", "School B", "School C", "School D"]
 
 # ---------------------------- UTILS ----------------------------
 def get_school_ref(school):

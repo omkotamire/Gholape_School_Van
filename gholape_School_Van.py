@@ -6,11 +6,26 @@ from firebase_admin import credentials, db
 import json
 
 # ---------------------------- FIREBASE INIT ----------------------------
+firebase_connected = False  # Track connection status
+
 if not firebase_admin._apps:
-    cred = credentials.Certificate(st.secrets["firebase"])
-    firebase_admin.initialize_app(cred, {
-        "databaseURL": "https://gholapevan-default-rtdb.asia-southeast1.firebasedatabase.app/"  # Replace with your actual URL
-    })
+    try:
+        cred = credentials.Certificate(st.secrets["firebase"])
+        firebase_admin.initialize_app(cred, {
+            "databaseURL": "https://gholapevan-default-rtdb.firebaseio.com/"  # ✅ Corrected
+        })
+    except Exception as e:
+        st.error(f"❌ Firebase init failed: {str(e)}")
+
+# ✅ Test Firebase connection
+try:
+    test_ref = db.reference("/")
+    test_data = test_ref.get()
+    firebase_connected = True
+except Exception as e:
+    firebase_connected = False
+    st.error(f"❌ Firebase connection failed: {str(e)}")
+
 
 # ---------------------------- SESSION INIT ----------------------------
 if "logged_in" not in st.session_state:
@@ -25,11 +40,11 @@ SCHOOLS = ["School A", "School B", "School C", "School D"]
 # ---------------------------- SIDEBAR STATUS ----------------------------
 with st.sidebar:
     if firebase_connected:
-        st.markdown("✅ **Firebase Status:** Connected")
+        st.success("✅ Firebase Status: Connected")
         if not test_data:
             st.warning("⚠️ Database is empty. Add data before login.")
     else:
-        st.markdown("❌ **Firebase Status:** Disconnected")
+        st.error("❌ Firebase Status: Disconnected")
 
 # ---------------------------- SESSION INIT ----------------------------
 if "logged_in" not in st.session_state:

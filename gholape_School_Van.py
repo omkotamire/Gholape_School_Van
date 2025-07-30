@@ -6,24 +6,22 @@ from firebase_admin import credentials, db
 import json
 
 # ---------------------------- FIREBASE INIT ----------------------------
-firebase_connected = False  # Track connection status
-
 if not firebase_admin._apps:
-    try:
-        cred = credentials.Certificate(dict(st.secrets["firebase"]))
-        firebase_admin.initialize_app(cred, {
-            "databaseURL": "https://gholapevan-default-rtdb.asia-southeast1.firebasedatabase.app/"  # ✅ Fixed URL
-        })
+    cred = credentials.Certificate(st.secrets["firebase"])
+    firebase_admin.initialize_app(cred, {
+        "databaseURL": "https://gholapevan-default-rtdb.asia-southeast1.firebasedatabase.app/"  # Replace with your actual URL
+    })
 
-        # 🔎 Test connection
-        test_ref = db.reference("/")
-        test_data = test_ref.get()
-        firebase_connected = True
+# ---------------------------- SESSION INIT ----------------------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "role" not in st.session_state:
+    st.session_state.role = None
+if "user" not in st.session_state:
+    st.session_state.user = None
 
-    except Exception as e:
-        st.error(f"❌ Firebase connection failed: {str(e)}")
-        firebase_connected = False
-
+SCHOOLS = ["School A", "School B", "School C", "School D"]
+        
 # ---------------------------- SIDEBAR STATUS ----------------------------
 with st.sidebar:
     if firebase_connected:

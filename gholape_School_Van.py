@@ -3,10 +3,15 @@ import pandas as pd
 from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, db
+import json
 
 # ---------------------------- FIREBASE INIT ----------------------------
 if not firebase_admin._apps:
-    cred = credentials.Certificate(st.secrets["firebase"])
+    #cred = credentials.Certificate(st.secrets["firebase"])
+    
+    cred_dict = json.loads(st.secrets["firebase"])  # Convert JSON string to dict
+    cred = credentials.Certificate(cred_dict)
+
     firebase_admin.initialize_app(cred, {
         "databaseURL": "https://your-project-id.firebaseio.com"  # Replace with your actual URL
     })

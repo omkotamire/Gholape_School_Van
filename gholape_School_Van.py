@@ -12,7 +12,7 @@ if not firebase_admin._apps:
     try:
         cred = credentials.Certificate(st.secrets["firebase"])
         firebase_admin.initialize_app(cred, {
-            "databaseURL": "https://gholapevan-default-rtdb.firebaseio.com/"  # ✅ Corrected
+            "databaseURL": "https://gholapevan-default-rtdb.asia-southeast1.firebasedatabase.app/"  # ✅ Corrected
         })
     except Exception as e:
         st.error(f"❌ Firebase init failed: {str(e)}")

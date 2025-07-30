@@ -8,9 +8,6 @@ import json
 # ---------------------------- FIREBASE INIT ----------------------------
 firebase_connected = False  # Track connection status
 
-# Debugging: Show secrets keys
-st.write("Secrets keys available:", list(st.secrets.keys()))
-
 if not firebase_admin._apps:
     try:
         firebase_config = dict(st.secrets["firebase"])  # ✅ Convert to dict

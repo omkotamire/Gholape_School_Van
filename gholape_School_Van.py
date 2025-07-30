@@ -6,6 +6,8 @@ from firebase_admin import credentials, db
 import json
 
 # ---------------------------- FIREBASE INIT ----------------------------
+firebase_connected = False  # Track connection status
+
 if not firebase_admin._apps:
     try:
         cred = credentials.Certificate(dict(st.secrets["firebase"]))
@@ -16,12 +18,20 @@ if not firebase_admin._apps:
         # 🔎 Test connection
         test_ref = db.reference("/")
         test_data = test_ref.get()
-        st.sidebar.success("✅ Firebase connected successfully!")
-        if not test_data:
-            st.sidebar.warning("⚠️ Database is empty. Add data before login.")
+        firebase_connected = True
+
     except Exception as e:
         st.error(f"❌ Firebase connection failed: {str(e)}")
-        st.stop()
+        firebase_connected = False
+
+# ---------------------------- SIDEBAR STATUS ----------------------------
+with st.sidebar:
+    if firebase_connected:
+        st.markdown("✅ **Firebase Status:** Connected")
+        if not test_data:
+            st.warning("⚠️ Database is empty. Add data before login.")
+    else:
+        st.markdown("❌ **Firebase Status:** Disconnected")
 
 # ---------------------------- SESSION INIT ----------------------------
 if "logged_in" not in st.session_state:

@@ -3,8 +3,7 @@ import pandas as pd
 from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, db
-import json
-from twilio.rest import Client  # ✅ Twilio for SMS
+import requests  # ✅ Fast2SMS
 
 # ---------------------------- FIREBASE INIT ----------------------------
 firebase_connected = False
@@ -26,32 +25,30 @@ except Exception as e:
     test_data = None
     st.error(f"❌ Firebase connection failed: {str(e)}")
 
-# ---------------------------- TWILIO INIT ----------------------------
-try:
-    TWILIO_SID = st.secrets["twilio"]["account_sid"]
-    TWILIO_AUTH = st.secrets["twilio"]["auth_token"]
-    TWILIO_NUMBER = st.secrets["twilio"]["phone_number"]
-    twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
-except Exception:
-    twilio_client = None  # If Twilio not configured
+# ---------------------------- FAST2SMS UTILS ----------------------------
+def send_sms(to_number, message):
+    """Send SMS using Fast2SMS API"""
+    url = "https://www.fast2sms.com/dev/bulkV2"
+    payload = {
+        'message': message,
+        'language': 'english',
+        'route': 'q',
+        'numbers': to_number
+    }
+    headers = {
+        'authorization': st.secrets["fast2sms_api_key"]
+    }
+
+    try:
+        response = requests.post(url, data=payload, headers=headers)
+        if response.status_code == 200:
+            st.success(f"📩 SMS sent to {to_number}")
+        else:
+            st.warning(f"⚠️ SMS failed: {response.text}")
+    except Exception as e:
+        st.error(f"SMS Error: {str(e)}")
 
 # ---------------------------- UTILS ----------------------------
-def send_sms(to_number, student_name, school_name):
-    """Send SMS notification to parent."""
-    if twilio_client:
-        try:
-            message = f"Hello, your child {student_name} has been successfully registered in {school_name}."
-            twilio_client.messages.create(
-                body=message,
-                from_=TWILIO_NUMBER,
-                to=f"+91{to_number}"  # Assuming Indian numbers
-            )
-            st.success("📩 SMS notification sent successfully")
-        except Exception as e:
-            st.warning(f"⚠️ SMS failed: {str(e)}")
-    else:
-        st.warning("⚠️ Twilio not configured. SMS not sent.")
-
 def get_school_ref(school):
     return db.reference(f"schools/{school.replace(' ', '_')}")
 
@@ -189,8 +186,8 @@ if st.session_state.role == "admin":
                         save_data(school, df)
                         st.success("✅ Student added successfully")
 
-                        # ✅ Send SMS Notification
-                        send_sms(contact, name, school)
+                        # ✅ Send SMS to parent
+                        send_sms(contact, f"Hello, your child {name} has been successfully registered in {school}.")
 
             st.markdown("### 📄 All Students")
             if not df.empty:
@@ -213,6 +210,10 @@ if st.session_state.role == "admin":
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         })
                         st.success(f"Fee of ₹{amt} submitted for {df.at[idx, 'name']}")
+
+                        # ✅ Send SMS for payment
+                        parent_number = df.at[idx, "parent_contact"]
+                        send_sms(parent_number, f"Payment of ₹{amt} received for {selected} in {school}.")
 
 # ---------------------------- PARENT ----------------------------
 elif st.session_state.role == "parent":

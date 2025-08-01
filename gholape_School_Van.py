@@ -3,10 +3,10 @@ import pandas as pd
 from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, db
-import requests  # ✅ Fast2SMS
+import json
 
 # ---------------------------- FIREBASE INIT ----------------------------
-firebase_connected = False
+firebase_connected = False  # Track connection status
 try:
     if not firebase_admin._apps:
         firebase_config = dict(st.secrets["firebase"])
@@ -16,37 +16,36 @@ try:
         })
         firebase_connected = True
     else:
+        # ✅ If already initialized, still consider it connected
         firebase_connected = True
 
+    # ✅ Test Firebase connection
     test_ref = db.reference("/")
     test_data = test_ref.get()
+
 except Exception as e:
     firebase_connected = False
     test_data = None
-    st.error(f"❌ Firebase connection failed: {str(e)}")
+    st.error(f"❌ Firebase connection failed: {str(e)}")    
 
-# ---------------------------- FAST2SMS UTILS ----------------------------
-def send_sms(to_number, message):
-    """Send SMS using Fast2SMS API"""
-    url = "https://www.fast2sms.com/dev/bulkV2"
-    payload = {
-        'message': message,
-        'language': 'english',
-        'route': 'q',
-        'numbers': to_number
-    }
-    headers = {
-        'authorization': st.secrets["fast2sms_api_key"]
-    }
+# ---------------------------- SESSION INIT ----------------------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "role" not in st.session_state:
+    st.session_state.role = None
+if "user" not in st.session_state:
+    st.session_state.user = None
 
-    try:
-        response = requests.post(url, data=payload, headers=headers)
-        if response.status_code == 200:
-            st.success(f"📩 SMS sent to {to_number}")
-        else:
-            st.warning(f"⚠️ SMS failed: {response.text}")
-    except Exception as e:
-        st.error(f"SMS Error: {str(e)}")
+SCHOOLS = ["School A", "School B", "School C", "School D"]
+        
+# ---------------------------- SIDEBAR STATUS ----------------------------
+with st.sidebar:
+    if firebase_connected:
+        st.success("✅ Firebase Status: Connected")
+        if not test_data:
+            st.warning("⚠️ Database is empty. Add data before login.")
+    else:
+        st.error("❌ Firebase Status: Disconnected")
 
 # ---------------------------- UTILS ----------------------------
 def get_school_ref(school):
@@ -87,25 +86,6 @@ def append_notification(school, msg):
 def load_notifications(school):
     data = get_notif_ref(school).get()
     return pd.DataFrame(data.values()) if data else pd.DataFrame(columns=["message", "timestamp"])
-
-# ---------------------------- SESSION INIT ----------------------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "role" not in st.session_state:
-    st.session_state.role = None
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-SCHOOLS = ["School A", "School B", "School C", "School D"]
-
-# ---------------------------- SIDEBAR STATUS ----------------------------
-with st.sidebar:
-    if firebase_connected:
-        st.success("✅ Firebase Status: Connected")
-        if not test_data:
-            st.warning("⚠️ Database is empty. Add data before login.")
-    else:
-        st.error("❌ Firebase Status: Disconnected")
 
 # ---------------------------- LOGIN ----------------------------
 if not st.session_state.logged_in:
@@ -165,15 +145,10 @@ if st.session_state.role == "admin":
                 fee = st.number_input("Total Fee", min_value=0, key=f"fee_{school}")
                 remaining = st.number_input("Remaining Fee", min_value=0, key=f"rem_{school}")
                 pname = st.text_input("Parent Name", key=f"pname_{school}")
-                contact = st.text_input("Parent Contact (10 digits)", key=f"contact_{school}")
-
+                contact = st.text_input("Parent Contact", key=f"contact_{school}")
                 if st.form_submit_button("Add Student"):
                     if not name or not pname or not contact:
-                        st.warning("⚠️ Fill required fields")
-                    elif not contact.isdigit() or len(contact) != 10:
-                        st.warning("⚠️ Enter a valid 10-digit mobile number")
-                    elif contact in df["parent_contact"].astype(str).values:
-                        st.warning("⚠️ This mobile number is already registered")
+                        st.warning("Fill required fields")
                     else:
                         df.loc[len(df)] = {
                             "name": name,
@@ -184,10 +159,7 @@ if st.session_state.role == "admin":
                             "parent_contact": contact
                         }
                         save_data(school, df)
-                        st.success("✅ Student added successfully")
-
-                        # ✅ Send SMS to parent
-                        send_sms(contact, f"Hello, your child {name} has been successfully registered in {school}.")
+                        st.success("Student added")
 
             st.markdown("### 📄 All Students")
             if not df.empty:
@@ -210,10 +182,6 @@ if st.session_state.role == "admin":
                             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         })
                         st.success(f"Fee of ₹{amt} submitted for {df.at[idx, 'name']}")
-
-                        # ✅ Send SMS for payment
-                        parent_number = df.at[idx, "parent_contact"]
-                        send_sms(parent_number, f"Payment of ₹{amt} received for {selected} in {school}.")
 
 # ---------------------------- PARENT ----------------------------
 elif st.session_state.role == "parent":

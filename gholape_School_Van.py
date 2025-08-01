@@ -4,9 +4,10 @@ from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, db
 import json
+from twilio.rest import Client  # ✅ Twilio for SMS
 
 # ---------------------------- FIREBASE INIT ----------------------------
-firebase_connected = False  # Track connection status
+firebase_connected = False
 try:
     if not firebase_admin._apps:
         firebase_config = dict(st.secrets["firebase"])
@@ -16,38 +17,41 @@ try:
         })
         firebase_connected = True
     else:
-        # ✅ If already initialized, still consider it connected
         firebase_connected = True
 
-    # ✅ Test Firebase connection
     test_ref = db.reference("/")
     test_data = test_ref.get()
-
 except Exception as e:
     firebase_connected = False
     test_data = None
-    st.error(f"❌ Firebase connection failed: {str(e)}")    
+    st.error(f"❌ Firebase connection failed: {str(e)}")
 
-# ---------------------------- SESSION INIT ----------------------------
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-if "role" not in st.session_state:
-    st.session_state.role = None
-if "user" not in st.session_state:
-    st.session_state.user = None
-
-SCHOOLS = ["School A", "School B", "School C", "School D"]
-        
-# ---------------------------- SIDEBAR STATUS ----------------------------
-with st.sidebar:
-    if firebase_connected:
-        st.success("✅ Firebase Status: Connected")
-        if not test_data:
-            st.warning("⚠️ Database is empty. Add data before login.")
-    else:
-        st.error("❌ Firebase Status: Disconnected")
+# ---------------------------- TWILIO INIT ----------------------------
+try:
+    TWILIO_SID = st.secrets["twilio"]["account_sid"]
+    TWILIO_AUTH = st.secrets["twilio"]["auth_token"]
+    TWILIO_NUMBER = st.secrets["twilio"]["phone_number"]
+    twilio_client = Client(TWILIO_SID, TWILIO_AUTH)
+except Exception:
+    twilio_client = None  # If Twilio not configured
 
 # ---------------------------- UTILS ----------------------------
+def send_sms(to_number, student_name, school_name):
+    """Send SMS notification to parent."""
+    if twilio_client:
+        try:
+            message = f"Hello, your child {student_name} has been successfully registered in {school_name}."
+            twilio_client.messages.create(
+                body=message,
+                from_=TWILIO_NUMBER,
+                to=f"+91{to_number}"  # Assuming Indian numbers
+            )
+            st.success("📩 SMS notification sent successfully")
+        except Exception as e:
+            st.warning(f"⚠️ SMS failed: {str(e)}")
+    else:
+        st.warning("⚠️ Twilio not configured. SMS not sent.")
+
 def get_school_ref(school):
     return db.reference(f"schools/{school.replace(' ', '_')}")
 
@@ -86,6 +90,25 @@ def append_notification(school, msg):
 def load_notifications(school):
     data = get_notif_ref(school).get()
     return pd.DataFrame(data.values()) if data else pd.DataFrame(columns=["message", "timestamp"])
+
+# ---------------------------- SESSION INIT ----------------------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "role" not in st.session_state:
+    st.session_state.role = None
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+SCHOOLS = ["School A", "School B", "School C", "School D"]
+
+# ---------------------------- SIDEBAR STATUS ----------------------------
+with st.sidebar:
+    if firebase_connected:
+        st.success("✅ Firebase Status: Connected")
+        if not test_data:
+            st.warning("⚠️ Database is empty. Add data before login.")
+    else:
+        st.error("❌ Firebase Status: Disconnected")
 
 # ---------------------------- LOGIN ----------------------------
 if not st.session_state.logged_in:
@@ -145,10 +168,15 @@ if st.session_state.role == "admin":
                 fee = st.number_input("Total Fee", min_value=0, key=f"fee_{school}")
                 remaining = st.number_input("Remaining Fee", min_value=0, key=f"rem_{school}")
                 pname = st.text_input("Parent Name", key=f"pname_{school}")
-                contact = st.text_input("Parent Contact", key=f"contact_{school}")
+                contact = st.text_input("Parent Contact (10 digits)", key=f"contact_{school}")
+
                 if st.form_submit_button("Add Student"):
                     if not name or not pname or not contact:
-                        st.warning("Fill required fields")
+                        st.warning("⚠️ Fill required fields")
+                    elif not contact.isdigit() or len(contact) != 10:
+                        st.warning("⚠️ Enter a valid 10-digit mobile number")
+                    elif contact in df["parent_contact"].astype(str).values:
+                        st.warning("⚠️ This mobile number is already registered")
                     else:
                         df.loc[len(df)] = {
                             "name": name,
@@ -159,7 +187,10 @@ if st.session_state.role == "admin":
                             "parent_contact": contact
                         }
                         save_data(school, df)
-                        st.success("Student added")
+                        st.success("✅ Student added successfully")
+
+                        # ✅ Send SMS Notification
+                        send_sms(contact, name, school)
 
             st.markdown("### 📄 All Students")
             if not df.empty:
